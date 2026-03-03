@@ -100,22 +100,70 @@ def pdf_to_image_base64(pdf_path):
         return None
 
 
+def clean_ai_content(content):
+    """清理AI生成的内容，去除重复和无效信息"""
+    if not content or not content.strip():
+        return ""
+    
+    lines = content.strip().split('\n')
+    cleaned_lines = []
+    seen_titles = set()
+    
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+            
+        # 检测重复标题
+        if '**' in line and line.count('**') >= 2:
+            # 提取标题内容（去除**标记）
+            title = line.replace('**', '').strip()
+            if title in seen_titles:
+                continue  # 跳过重复标题
+            seen_titles.add(title)
+        
+        # 检测数字编号的重复行
+        if '.' in line and line.split('.')[0].strip().isdigit():
+            # 检查是否是重复编号
+            num_part = line.split('.')[0].strip()
+            content_part = line.split('.', 1)[1].strip() if '.' in line else line
+            if content_part in seen_titles:
+                continue
+            seen_titles.add(content_part)
+        
+        cleaned_lines.append(line)
+    
+    # 如果清理后内容过少，可能是AI幻觉，返回空内容
+    if len(cleaned_lines) <= 3:
+        return "⚠️ AI解析结果可能存在问题，建议重新解析或检查图片质量"
+    
+    return '\n'.join(cleaned_lines)
+
 def parse_ai_content(content, newspaper_name, date_str):
     """解析AI生成的内容，提取新闻标题和摘要"""
     if not content or not content.strip():
         return []
     
+    # 先清理内容
+    cleaned_content = clean_ai_content(content)
+    if cleaned_content.startswith('⚠️'):
+        print(cleaned_content)
+        return []
+    
     summaries = []
-    lines = content.strip().split('\n')
+    lines = cleaned_content.strip().split('\n')
     current_title = None
     current_summary = []
+    seen_titles = set()
     
     for line in lines:
         line = line.strip()
         if line.startswith('【头条新闻'):
             # 保存上一条新闻
             if current_title and current_summary:
-                summaries.append((newspaper_name, date_str, current_title, ' '.join(current_summary)))
+                if current_title not in seen_titles:
+                    summaries.append((newspaper_name, date_str, current_title, ' '.join(current_summary)))
+                    seen_titles.add(current_title)
             # 提取新标题
             title_match = line.split('】', 1)
             if len(title_match) > 1:
@@ -125,9 +173,15 @@ def parse_ai_content(content, newspaper_name, date_str):
             # 提取摘要
             summary = line.replace('📝 核心内容：', '').strip()
             current_summary.append(summary)
+        elif '**' in line and line.count('**') >= 2:
+            # 处理加粗标题格式
+            title = line.replace('**', '').strip()
+            if title not in seen_titles:
+                summaries.append((newspaper_name, date_str, title, ""))
+                seen_titles.add(title)
     
     # 保存最后一条新闻
-    if current_title and current_summary:
+    if current_title and current_summary and current_title not in seen_titles:
         summaries.append((newspaper_name, date_str, current_title, ' '.join(current_summary)))
     
     return summaries
