@@ -1,9 +1,12 @@
-# 必要依赖
-requests
-pillow
-pdf2image
-python-dotenv
-openai
+# 核心依赖
+requests>=2.31.0
+Pillow>=10.2.0
+pdf2image>=1.16.3
+python-dotenv>=1.0.0
+openai>=1.16.1
 
-# 可选依赖（用于数据库功能）
-psycopg2-binary
+# 可选依赖（数据库）
+psycopg2-binary>=2.9.9
+
+# 开发依赖
+pytest>=7.4.0
